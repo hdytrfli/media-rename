@@ -74,7 +74,6 @@ def offset_srt_content(content: str, offset_ms: int) -> Tuple[str, int]:
     lines = content.splitlines(keepends=True)
     result_lines = []
 
-    # Pattern for timestamp lines: 00:00:00,000 --> 00:00:00,000
     timestamp_pattern = re.compile(
         r'^(\d{2}:\d{2}:\d{2}[,.]\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}[,.]\d{3})'
     )
@@ -86,13 +85,10 @@ def offset_srt_content(content: str, offset_ms: int) -> Tuple[str, int]:
             new_start = offset_timestamp(start_ts, offset_ms)
             new_end = offset_timestamp(end_ts, offset_ms)
 
-            # Preserve the original line format (spaces and line endings)
             line_stripped = line.rstrip('\r\n')
             line_match = timestamp_pattern.match(line_stripped)
             if line_match:
-                # Get original line ending
                 line_ending = line[len(line_stripped):]
-                # Reconstruct with original spacing and line ending
                 prefix = line[:line.index(line_match.group(0))]
                 suffix = line_stripped[line.index(line_match.group(0)) + len(line_match.group(0)):]
                 line = f"{prefix}{new_start} --> {new_end}{suffix}{line_ending}"
@@ -128,7 +124,6 @@ def process_srt_file(
     if not srt_path.exists():
         return OffsetResult(srt_path, output_dir, offset_ms, 0, Status.ERROR_FILE)
 
-    # Try multiple encodings
     content = None
     for encoding in ['utf-8', 'utf-8-sig', 'cp1252', 'latin-1']:
         try:

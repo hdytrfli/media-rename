@@ -8,7 +8,7 @@ from extractsub.mkv_processor import (
     check_mkvtoolnix_installed,
     probe_mkv_file,
     extract_subtitles,
-    process_directory,
+    process_path,
 )
 from extractsub.cli import main
 
@@ -21,6 +21,6 @@ __all__ = [
     "check_mkvtoolnix_installed",
     "probe_mkv_file",
     "extract_subtitles",
-    "process_directory",
+    "process_path",
     "main",
 ]

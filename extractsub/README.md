@@ -40,6 +40,9 @@ pip install -e .
 # Dry-run (default) - shows what would be extracted
 extractsub ./movies
 
+# Process a single MKV file
+extractsub movie.mkv
+
 # Actually extract subtitles
 extractsub ./movies --execute
 
@@ -113,7 +116,7 @@ Statistics:
 
 ## How It Works
 
-1. Scans the target directory for `.mkv` files
+1. Scans the target path (single MKV file or directory) for `.mkv` files
 2. Uses `mkvmerge` to probe each file for subtitle tracks
 3. Identifies all subtitle streams with their language, codec, and properties
 4. Extracts subtitles using `mkvextract` to current directory (or specified output)

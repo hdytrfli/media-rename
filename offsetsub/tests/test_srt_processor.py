@@ -66,7 +66,7 @@ class TestParseTimestamp:
             ("00:00:00,500", 500),
             ("00:01:23,456", 83456),
             ("01:23:45,678", 5025678),
-            ("00:00:00.000", 0),  # Dot separator
+            ("00:00:00.000", 0),
             ("00:00:01.500", 1500),
         ],
     )
@@ -181,7 +181,6 @@ class TestProcessSrtFile:
         assert result.status == Status.OFFSET
         assert result.cues_modified == 1
         
-        # Verify content was modified
         content = result.output_path.read_text()
         assert "00:00:01,500" in content
 

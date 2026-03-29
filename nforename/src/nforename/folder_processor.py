@@ -55,15 +55,25 @@ def process_folder(folder: Path, dry_run: bool = True) -> RenameResult:
         return RenameResult(folder, new_path, year, media_type, Status.ERROR_RENAME)
 
 
-def process_directory(target: Path, dry_run: bool = True, show_progress: bool = True) -> List[RenameResult]:
-    '''Process all folders in target directory.'''
-    if not target.exists():
-        raise FileNotFoundError(f"Directory not found: {target}")
-    if not target.is_dir():
-        raise NotADirectoryError(f"Not a directory: {target}")
+def process_path(target: Path, dry_run: bool = True, show_progress: bool = True) -> List[RenameResult]:
+    '''Process a single folder or all folders in target directory.
 
-    folders = [item for item in target.iterdir() if item.is_dir()]
-    
+    If target is a folder with no subdirectories, treat it as a single folder to process.
+    Otherwise, treat it as a directory and process all subfolders.
+    '''
+    if not target.exists():
+        raise FileNotFoundError(f"Path not found: {target}")
+
+    if target.is_file():
+        return []
+
+    has_subdirs = any(item.is_dir() for item in target.iterdir())
+
+    if has_subdirs:
+        folders = [item for item in target.iterdir() if item.is_dir()]
+    else:
+        folders = [target]
+
     results = []
     iterator = tqdm(folders, desc="Processing", unit="folder") if show_progress else folders
     for item in iterator:

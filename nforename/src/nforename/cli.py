@@ -7,7 +7,7 @@ from pathlib import Path
 
 from tabulate import tabulate
 
-from nforename.folder_processor import process_directory
+from nforename.folder_processor import process_path
 from nforename.models import Status
 
 
@@ -59,11 +59,11 @@ def main():
         description="Rename movie/show folders by adding year from .nfo files"
     )
     parser.add_argument(
-        "directory",
+        "path",
         type=Path,
         nargs="?",
         default=Path("."),
-        help="Directory to process (default: current directory)"
+        help="Folder or directory to process (default: current directory)"
     )
     parser.add_argument(
         "--execute",
@@ -78,9 +78,9 @@ def main():
     args = parser.parse_args()
 
     try:
-        results = process_directory(args.directory, dry_run=not args.execute, show_progress=not args.no_progress)
+        results = process_path(args.path, dry_run=not args.execute, show_progress=not args.no_progress)
         print_table(results)
-    except (FileNotFoundError, NotADirectoryError) as e:
+    except FileNotFoundError as e:
         print(f"Error: {e}")
         return 1
 

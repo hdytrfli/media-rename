@@ -8,7 +8,7 @@ import pytest
 from extractsub.mkv_processor import (
     extract_subtitles,
     find_mkv_files,
-    process_directory,
+    process_path,
     sanitize_filename,
 )
 from extractsub.models import Status
@@ -81,7 +81,6 @@ class TestExtractSubtitles:
         mkv_file = tmp_path / "test.mkv"
         mkv_file.touch()
 
-        # Mock the probe function to return fake subtitle data
         def mock_probe(path):
             return [
                 {
@@ -119,8 +118,8 @@ class TestExtractSubtitles:
         assert len(result.subtitle_tracks) == 0
 
 
-class TestProcessDirectory:
-    """Tests for process_directory function."""
+class TestProcessPath:
+    """Tests for process_path function."""
 
     def test_processes_multiple_mkv_files(self, tmp_path, monkeypatch):
         """Should process multiple MKV files."""
@@ -128,14 +127,13 @@ class TestProcessDirectory:
         (tmp_path / "movie2.mkv").touch()
         (tmp_path / "movie3.mkv").touch()
 
-        # Mock extract_subtitles to return consistent results
         def mock_extract(path, output_dir=None, track_ids=None, dry_run=True, remove_original=False):
             from extractsub.models import ExtractResult
             return ExtractResult(path, None, [], Status.DRY_RUN)
 
         monkeypatch.setattr("extractsub.mkv_processor.extract_subtitles", mock_extract)
 
-        results = process_directory(tmp_path)
+        results = process_path(tmp_path)
         assert len(results) == 3
         assert all(r.status == Status.DRY_RUN for r in results)
 
@@ -151,21 +149,37 @@ class TestProcessDirectory:
 
         monkeypatch.setattr("extractsub.mkv_processor.extract_subtitles", mock_extract)
 
-        results = process_directory(tmp_path)
+        results = process_path(tmp_path)
         assert len(results) == 1
         assert results[0].file_path.name == "movie.mkv"
 
-    def test_raises_on_nonexistent_directory(self):
-        """Should raise FileNotFoundError for nonexistent directory."""
+    def test_raises_on_nonexistent_path(self):
+        """Should raise FileNotFoundError for nonexistent path."""
         with pytest.raises(FileNotFoundError):
-            process_directory(Path("/nonexistent/path"))
+            process_path(Path("/nonexistent/path"))
 
-    def test_raises_on_file_instead_of_directory(self, tmp_path):
-        """Should raise NotADirectoryError for file path."""
-        file_path = tmp_path / "file.txt"
-        file_path.write_text("test")
-        with pytest.raises(NotADirectoryError):
-            process_directory(file_path)
+    def test_processes_single_mkv_file(self, tmp_path, monkeypatch):
+        """Should process single MKV file."""
+        mkv_file = tmp_path / "movie.mkv"
+        mkv_file.touch()
+
+        def mock_extract(path, output_dir=None, track_ids=None, dry_run=True, remove_original=False):
+            from extractsub.models import ExtractResult
+            return ExtractResult(path, None, [], Status.DRY_RUN)
+
+        monkeypatch.setattr("extractsub.mkv_processor.extract_subtitles", mock_extract)
+
+        results = process_path(mkv_file)
+        assert len(results) == 1
+        assert results[0].status == Status.DRY_RUN
+
+    def test_returns_empty_for_non_mkv_file(self, tmp_path, monkeypatch):
+        """Should return empty list for non-MKV file."""
+        txt_file = tmp_path / "file.txt"
+        txt_file.write_text("test")
+
+        results = process_path(txt_file)
+        assert len(results) == 0
 
     def test_respects_show_progress_false(self, tmp_path, monkeypatch):
         """Should work without progress bar."""
@@ -177,5 +191,5 @@ class TestProcessDirectory:
 
         monkeypatch.setattr("extractsub.mkv_processor.extract_subtitles", mock_extract)
 
-        results = process_directory(tmp_path, show_progress=False)
+        results = process_path(tmp_path, show_progress=False)
         assert len(results) == 1

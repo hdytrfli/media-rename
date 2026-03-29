@@ -8,8 +8,8 @@ import pytest
 from nforename.folder_processor import (
     format_name_with_year,
     has_year_in_name,
-    process_directory,
     process_folder,
+    process_path,
 )
 from nforename.models import MediaType, Status
 
@@ -99,8 +99,8 @@ class TestProcessFolder:
         assert result.status == Status.ERROR_CONFLICT
 
 
-class TestProcessDirectory:
-    """Tests for process_directory function."""
+class TestProcessPath:
+    """Tests for process_path function."""
 
     def test_processes_multiple_folders(self, tmp_path):
         """Should process multiple folders in directory."""
@@ -109,7 +109,7 @@ class TestProcessDirectory:
             folder.mkdir()
             (folder / "movie.nfo").write_text(MOVIE_XML, encoding="utf-8")
 
-        results = process_directory(tmp_path)
+        results = process_path(tmp_path)
         assert len(results) == 3
         assert all(r.status == Status.DRY_RUN for r in results)
 
@@ -122,17 +122,37 @@ class TestProcessDirectory:
             "<?xml?><movie><year>2020</year></movie>", encoding="utf-8"
         )
 
-        results = process_directory(tmp_path)
+        results = process_path(tmp_path)
         assert len(results) == 1
 
-    def test_raises_on_nonexistent_directory(self):
-        """Should raise FileNotFoundError for nonexistent directory."""
+    def test_raises_on_nonexistent_path(self):
+        """Should raise FileNotFoundError for nonexistent path."""
         with pytest.raises(FileNotFoundError):
-            process_directory(Path("/nonexistent/path"))
+            process_path(Path("/nonexistent/path"))
 
-    def test_raises_on_file_instead_of_directory(self, tmp_path):
-        """Should raise NotADirectoryError for file path."""
+    def test_processes_single_folder(self, tmp_path):
+        """Should process single folder with .nfo file."""
+        folder = tmp_path / "Movie"
+        folder.mkdir()
+        (folder / "movie.nfo").write_text(MOVIE_XML, encoding="utf-8")
+
+        results = process_path(folder)
+        assert len(results) == 1
+        assert results[0].status == Status.DRY_RUN
+
+    def test_returns_empty_for_file_path(self, tmp_path):
+        """Should return empty list for file path."""
         file_path = tmp_path / "file.txt"
         file_path.write_text("test")
-        with pytest.raises(NotADirectoryError):
-            process_directory(file_path)
+
+        results = process_path(file_path)
+        assert len(results) == 0
+
+    def test_processes_folder_without_nfo_returns_skipped(self, tmp_path):
+        """Should process single folder without .nfo and return skipped."""
+        folder = tmp_path / "Movie"
+        folder.mkdir()
+
+        results = process_path(folder)
+        assert len(results) == 1
+        assert results[0].status == Status.SKIPPED_NO_NFO

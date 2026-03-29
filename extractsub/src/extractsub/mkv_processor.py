@@ -14,9 +14,15 @@ from tqdm import tqdm
 from extractsub.models import ExtractResult, Status, SubtitleTrack
 
 
-def find_mkv_files(directory: Path) -> List[Path]:
-    '''Find all MKV files in directory (non-recursive).'''
-    return sorted(directory.glob("*.mkv"))
+def find_mkv_files(path: Path) -> List[Path]:
+    '''Find all MKV files in directory (non-recursive) or return single file.'''
+    if path.is_file():
+        if path.suffix.lower() == '.mkv':
+            return [path]
+        return []
+    if path.is_dir():
+        return sorted(path.glob("*.mkv"))
+    return []
 
 
 def check_mkvtoolnix_installed() -> bool:
@@ -53,7 +59,6 @@ def probe_mkv_file(mkv_path: Path) -> Tuple[List[dict], bool]:
         for track in data.get("tracks", []):
             if track.get("type") == "subtitles":
                 codec = track.get("codec", "")
-                # Skip image-based subtitles if needed (PGS, HDMV_PGS)
                 subtitle_tracks.append({
                     "id": track.get("id", 0),
                     "codec": codec,
@@ -106,14 +111,12 @@ def extract_subtitles(
     
     if not has_subs:
         return ExtractResult(mkv_path, None, [], Status.SKIPPED_NO_SUBS)
-    
-    # Filter tracks if specific IDs requested
+
     if track_ids is not None:
         subtitle_info = [t for t in subtitle_info if t["id"] in track_ids]
         if not subtitle_info:
             return ExtractResult(mkv_path, None, [], Status.ERROR_NO_SUBS)
     
-    # Convert to SubtitleTrack objects
     tracks = [
         SubtitleTrack(
             track_id=t["id"],
@@ -132,7 +135,6 @@ def extract_subtitles(
     output_dir = output_dir or mkv_path.parent
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Extract each subtitle track
     mkvextract = shutil.which("mkvextract")
     if not mkvextract:
         return ExtractResult(mkv_path, None, tracks, Status.ERROR_EXTRACT)
@@ -158,7 +160,6 @@ def extract_subtitles(
         except subprocess.CalledProcessError as e:
             return ExtractResult(mkv_path, None, tracks, Status.ERROR_EXTRACT)
 
-    # Remove subtitles from original file if requested
     if remove_original:
         try:
             _remove_subtitles_from_file(mkv_path, [t.track_id for t in tracks])
@@ -179,12 +180,10 @@ def _remove_subtitles_from_file(mkv_path: Path, subtitle_track_ids: List[int]) -
     mkvmerge = shutil.which("mkvmerge")
     if not mkvmerge:
         raise RuntimeError("mkvmerge not found")
-    
-    # Create temp file for output
+
     temp_path = mkv_path.with_suffix(".mkv.tmp")
     
     try:
-        # Use --no-subtitles to remove all subtitle tracks
         result = subprocess.run(
             [
                 mkvmerge, "-o", str(temp_path),
@@ -196,8 +195,7 @@ def _remove_subtitles_from_file(mkv_path: Path, subtitle_track_ids: List[int]) -
             text=True,
             check=True
         )
-        
-        # Replace original file with new one
+
         mkv_path.unlink()
         temp_path.rename(mkv_path)
     except subprocess.CalledProcessError as e:
@@ -212,8 +210,6 @@ def _extract_with_mkvmerge(
     tracks: List[SubtitleTrack]
 ) -> ExtractResult:
     '''Fallback extraction using mkvmerge remux.'''
-    # This creates a new MKV without subtitles
-    # For actual subtitle extraction, mkvextract is required
     return ExtractResult(mkv_path, None, tracks, Status.ERROR_EXTRACT)
 
 
@@ -250,68 +246,64 @@ def _sanitize_video_name(name: str) -> str:
         "My.Show.S01E01.1080p.WEB.H264-Group" -> "My.Show.S01E01"
         "Movie.Name.2023.2160p.UHD.BluRay.x265" -> "Movie.Name.2023"
     '''
-    # Common patterns to remove (case insensitive)
     patterns_to_remove = [
-        r'\.?\d{3,4}p\b.*',  # Resolution tags (720p, 1080p, 2160p) and everything after
-        r'\.?\bWEB\b.*',     # WEB source
-        r'\.?\bBluRay\b.*',  # BluRay source
-        r'\.?\bBDRip\b.*',   # BDRip
-        r'\.?\bHDRip\b.*',   # HDRip
-        r'\.?\bHDTV\b.*',    # HDTV
-        r'\.?\bDVDRip\b.*',  # DVDRip
-        r'\.?\bUHD\b.*',     # UHD
-        r'\.?\bHEVC\b.*',    # HEVC codec
-        r'\.?\bH\.?26[456]\b.*',  # H.264/H.265/H.266 codec
-        r'\.?\bx26[456]\b.*',     # x264/x265/x266 codec
-        r'\.?\bAAC\b.*',     # AAC audio
-        r'\.?\bAC3\b.*',     # AC3 audio
-        r'\.?\bDTS\b.*',     # DTS audio
-        r'\.?\bFLAC\b.*',    # FLAC audio
-        r'\.?\bDDP\b.*',     # Dolby Digital Plus
-        r'\.?\bDD\b.*',      # Dolby Digital
-        r'\.?\b10bit\b.*',   # 10-bit
-        r'\.?\b8bit\b.*',    # 8-bit
-        r'\.?\bHi10p\b.*',   # Hi10P
-        r'\.?\bHi444p\b.*',  # Hi444PP
-        r'\s*\(.*?\)\s*$',   # Parentheses at end
+        r'\.?\d{3,4}p\b.*',
+        r'\.?\bWEB\b.*',
+        r'\.?\bBluRay\b.*',
+        r'\.?\bBDRip\b.*',
+        r'\.?\bHDRip\b.*',
+        r'\.?\bHDTV\b.*',
+        r'\.?\bDVDRip\b.*',
+        r'\.?\bUHD\b.*',
+        r'\.?\bHEVC\b.*',
+        r'\.?\bH\.?26[456]\b.*',
+        r'\.?\bx26[456]\b.*',
+        r'\.?\bAAC\b.*',
+        r'\.?\bAC3\b.*',
+        r'\.?\bDTS\b.*',
+        r'\.?\bFLAC\b.*',
+        r'\.?\bDDP\b.*',
+        r'\.?\bDD\b.*',
+        r'\.?\b10bit\b.*',
+        r'\.?\b8bit\b.*',
+        r'\.?\bHi10p\b.*',
+        r'\.?\bHi444p\b.*',
+        r'\s*\(.*?\)\s*$',
     ]
     
     result = name
     for pattern in patterns_to_remove:
         result = re.sub(pattern, '', result, flags=re.IGNORECASE)
-    
-    # Clean up trailing dots, dashes, underscores
+
     result = re.sub(r'[\.\-_ ]+$', '', result)
     
     return result if result else name
 
 
-def process_directory(
-    target: Path,
+def process_path(
+    path: Path,
     dry_run: bool = True,
     show_progress: bool = True,
     output_dir: Optional[Path] = None,
     remove_original: bool = False
 ) -> List[ExtractResult]:
     '''
-    Process all MKV files in target directory.
+    Process MKV file or directory containing MKV files.
 
     Args:
-        target: Directory to process
+        path: MKV file or directory to process
         dry_run: If True, don't actually extract
         show_progress: If True, show progress bar
-        output_dir: Output directory for subtitles
+        output_dir: Output directory for extracted subtitles
         remove_original: If True, remove subtitles from original file after extraction
 
     Returns:
         List of ExtractResult for each file
     '''
-    if not target.exists():
-        raise FileNotFoundError(f"Directory not found: {target}")
-    if not target.is_dir():
-        raise NotADirectoryError(f"Not a directory: {target}")
+    if not path.exists():
+        raise FileNotFoundError(f"Path not found: {path}")
 
-    mkv_files = find_mkv_files(target)
+    mkv_files = find_mkv_files(path)
 
     results = []
     iterator = tqdm(mkv_files, desc="Processing", unit="file") if show_progress else mkv_files

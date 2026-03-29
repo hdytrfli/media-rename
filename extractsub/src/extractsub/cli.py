@@ -7,7 +7,7 @@ from pathlib import Path
 
 from tabulate import tabulate
 
-from extractsub.mkv_processor import check_mkvtoolnix_installed, process_directory
+from extractsub.mkv_processor import check_mkvtoolnix_installed, process_path
 from extractsub.models import Status
 
 
@@ -64,11 +64,11 @@ def main():
         description="Extract embedded subtitles from MKV files"
     )
     parser.add_argument(
-        "directory",
+        "path",
         type=Path,
         nargs="?",
         default=Path("."),
-        help="Directory to process (default: current directory)"
+        help="MKV file or directory to process (default: current directory)"
     )
     parser.add_argument(
         "--execute",
@@ -100,13 +100,12 @@ def main():
         print("Please install from: https://mkvtoolnix.download/")
         return 1
 
-    # Default output directory is current directory
     output_dir = args.output if args.output else Path(".")
 
     try:
-        results = process_directory(args.directory, dry_run=not args.execute, show_progress=not args.no_progress, output_dir=output_dir, remove_original=args.remove)
+        results = process_path(args.path, dry_run=not args.execute, show_progress=not args.no_progress, output_dir=output_dir, remove_original=args.remove)
         print_table(results)
-    except (FileNotFoundError, NotADirectoryError) as e:
+    except FileNotFoundError as e:
         print(f"Error: {e}")
         return 1
 

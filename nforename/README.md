@@ -36,6 +36,9 @@ pip install -e .
 # Dry-run (default) - shows what would be renamed
 nforename ./movies
 
+# Process a single folder
+nforename "Movie Folder"
+
 # Actually rename folders
 nforename ./movies --execute
 
@@ -101,7 +104,7 @@ Statistics:
 
 ## How It Works
 
-1. Scans the target directory for folders
+1. Scans the target path (single folder or directory) for folders
 2. Looks for `.nfo` files in each folder:
    - First checks for `movie.nfo` or `tvshow.nfo`
    - Falls back to any `.nfo` file
