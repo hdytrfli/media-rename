@@ -10,6 +10,7 @@ from extractsub.mkv_processor import (
     extract_subtitles,
     process_path,
 )
+from extractsub.subtitle_naming import get_lang_code, get_subtitle_tags, build_subtitle_filename
 from extractsub.cli import main
 
 __version__ = "1.0.0"
@@ -22,5 +23,8 @@ __all__ = [
     "probe_mkv_file",
     "extract_subtitles",
     "process_path",
+    "get_lang_code",
+    "get_subtitle_tags",
+    "build_subtitle_filename",
     "main",
 ]

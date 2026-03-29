@@ -12,6 +12,7 @@ from typing import List, Optional, Tuple
 from tqdm import tqdm
 
 from extractsub.models import ExtractResult, Status, SubtitleTrack
+from extractsub.subtitle_naming import get_lang_code, get_subtitle_tags, build_subtitle_filename
 
 
 def find_mkv_files(path: Path) -> List[Path]:
@@ -59,13 +60,14 @@ def probe_mkv_file(mkv_path: Path) -> Tuple[List[dict], bool]:
         for track in data.get("tracks", []):
             if track.get("type") == "subtitles":
                 codec = track.get("codec", "")
+                props = track.get("properties", {})
                 subtitle_tracks.append({
                     "id": track.get("id", 0),
                     "codec": codec,
-                    "language": track.get("language", "und"),
-                    "title": track.get("track_name", ""),
-                    "forced": track.get("forced", False),
-                    "default": track.get("default_track", False),
+                    "language": props.get("language", "und"),
+                    "title": props.get("track_name", ""),
+                    "forced": props.get("forced_track", False),
+                    "default": props.get("default_track", False),
                 })
         
         return subtitle_tracks, len(subtitle_tracks) > 0
@@ -139,26 +141,55 @@ def extract_subtitles(
     if not mkvextract:
         return ExtractResult(mkv_path, None, tracks, Status.ERROR_EXTRACT)
 
-    extracted_files = []
+    lang_tracks = {}
     for track in tracks:
-        ext = _get_subtitle_extension(track.codec)
-        video_name = _sanitize_video_name(mkv_path.stem)
-        title_part = f".{sanitize_filename(track.title)}" if track.title else ""
-        lang = track.language if track.language and track.language != "und" else ""
-        lang_part = f".{lang}" if lang else ""
-        output_name = f"{video_name}{lang_part}{title_part}{ext}"
-        output_path = output_dir / output_name
+        lang = get_lang_code(track.language, track.title or "")
+        if lang not in lang_tracks:
+            lang_tracks[lang] = []
+        lang_tracks[lang].append(track)
 
-        try:
-            result = subprocess.run(
-                [mkvextract, "tracks", str(mkv_path), f"{track.track_id}:{output_path}"],
-                capture_output=True,
-                text=True,
-                check=True
+    extracted_files = []
+    used_names = {}
+    
+    for lang, lang_track_list in lang_tracks.items():
+        non_tagged_count = sum(
+            1 for t in lang_track_list
+            if not get_subtitle_tags(t)
+        )
+
+        current_non_tagged = 0
+        for track in lang_track_list:
+            ext = _get_subtitle_extension(track.codec)
+            video_name = _sanitize_video_name(mkv_path.stem)
+
+            tags = get_subtitle_tags(track)
+
+            if not tags:
+                current_non_tagged += 1
+
+            output_name = build_subtitle_filename(
+                video_name, lang, tags,
+                current_non_tagged, non_tagged_count,
+                ext
             )
-            extracted_files.append(output_path)
-        except subprocess.CalledProcessError as e:
-            return ExtractResult(mkv_path, None, tracks, Status.ERROR_EXTRACT)
+            output_path = output_dir / output_name
+            
+            if output_name in used_names:
+                output_name = f"{video_name}.{lang}.{track.track_id}{ext}"
+                output_path = output_dir / output_name
+            
+            used_names[output_name] = track.track_id
+
+            try:
+                result = subprocess.run(
+                    [mkvextract, "tracks", str(mkv_path), f"{track.track_id}:{output_path}"],
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+                extracted_files.append(output_path)
+            except subprocess.CalledProcessError as e:
+                return ExtractResult(mkv_path, None, tracks, Status.ERROR_EXTRACT)
 
     if remove_original:
         try:
@@ -188,7 +219,8 @@ def _remove_subtitles_from_file(mkv_path: Path, subtitle_track_ids: List[int]) -
             [
                 mkvmerge, "-o", str(temp_path),
                 "--no-subtitles",
-                "--no-chapters", "--no-global-tags",
+                "--no-chapters", 
+                "--no-global-tags",
                 str(mkv_path)
             ],
             capture_output=True,
